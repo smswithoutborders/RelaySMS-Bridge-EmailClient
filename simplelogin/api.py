@@ -110,7 +110,7 @@ def create_alias(
     hostname: str,
     note: str = None,
     alias_name: str = None,
-):
+) -> dict:
     """Create a new alias using the SimpleLogin API.
 
     Args:
@@ -158,11 +158,11 @@ def create_alias(
         return None
 
 
-def delete_alias(alias_id: str):
+def delete_alias(alias_id: int) -> bool:
     """Delete an alias by its ID using the SimpleLogin API.
 
     Args:
-        alias_id (str): The ID of the alias to be deleted.
+        alias_id (int): The ID of the alias to be deleted.
 
     Returns:
         bool: True if deletion is successful, False otherwise.
@@ -183,7 +183,7 @@ def delete_alias(alias_id: str):
         return False
 
 
-def get_all_mailboxes():
+def get_all_mailboxes() -> list:
     """Fetch all mailboxes from the SimpleLogin API.
 
     Returns:
@@ -207,7 +207,7 @@ def get_all_mailboxes():
         return None
 
 
-def get_mailbox_by_email(email):
+def get_mailbox_by_email(email: str) -> dict:
     """Get mailbox information by email address.
 
     Args:
@@ -229,3 +229,36 @@ def get_mailbox_by_email(email):
 
     logger.info("No mailbox found for email %s.", email)
     return None
+
+
+def get_or_create_alias_contact(alias_id: int, email_address: str) -> dict:
+    """Retrieve or Create a new contact for an alias.
+
+    Args:
+        alias_id (int): The ID of the alias who owns the contact.
+        email_address (str): The recipient's email address.
+
+    Returns:
+        dict: JSON response containing contact data if successful.
+        None: If the request fails.
+    """
+    url = f"{SL_API_BASE_URL}/aliases/{alias_id}/contacts"
+
+    data = {"contact": f"<{email_address}>"}
+
+    try:
+        response = requests.post(url, json=data, headers=__get_headers__(), timeout=30)
+        response.raise_for_status()
+        contact = response.json()
+        logger.info(
+            "Contact '%s' %s successfully.",
+            contact["contact"],
+            "retrieved" if contact["existed"] else "created",
+        )
+        return contact
+    except requests.exceptions.RequestException as e:
+        error_response = e.response.json()
+        error_message = error_response.get("error") or str(e)
+        logger.error("Failed to create contact: %s", e)
+        logger.error("Error message: %s", error_message)
+        return None
