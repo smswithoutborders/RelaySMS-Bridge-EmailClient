@@ -2,7 +2,9 @@
 A client script for sending emails using a SimpleLogin alias and reverse alias.
 """
 
+import sys
 import re
+import argparse
 import smtplib
 from datetime import datetime
 from email.mime.text import MIMEText
@@ -20,11 +22,11 @@ logger = get_logger(__name__)
 
 SL_PRIMARY_EMAIL = get_env_var("SL_PRIMARY_EMAIL", strict=True)
 SL_PRIMARY_DOMAIN = get_env_var("SL_PRIMARY_DOMAIN", strict=True)
-SMTP_SERVER = get_env_var("SMTP_SERVER", strict=True)
-SMTP_PORT = get_env_var("SMTP_PORT", 587)
-SMTP_USERNAME = get_env_var("SMTP_USERNAME", strict=True)
-SMTP_PASSWORD = get_env_var("SMTP_PASSWORD", strict=True)
-SMTP_ENABLE_TLS = get_env_var("SMTP_ENABLE_TLS", True)
+BRIDGE_SMTP_SERVER = get_env_var("BRIDGE_SMTP_SERVER", strict=True)
+BRIDGE_SMTP_PORT = get_env_var("BRIDGE_SMTP_PORT", 587)
+BRIDGE_SMTP_USERNAME = get_env_var("BRIDGE_SMTP_USERNAME", strict=True)
+BRIDGE_SMTP_PASSWORD = get_env_var("BRIDGE_SMTP_PASSWORD", strict=True)
+BRIDGE_SMTP_ENABLE_TLS = get_env_var("BRIDGE_SMTP_ENABLE_TLS", True)
 
 
 def get_or_create_phonenumber_alias(phone_number: str) -> dict:
@@ -57,7 +59,7 @@ def get_or_create_phonenumber_alias(phone_number: str) -> dict:
 
     alias = create_alias(
         alias_prefix=cleaned_phone_number,
-        alias_name=f"{cleaned_phone_number} From RelaySMS",
+        alias_name=f"{cleaned_phone_number} Via RelaySMS",
         hostname=SL_PRIMARY_DOMAIN,
         mailbox_id=primary_mailbox["id"],
         note=note,
@@ -70,7 +72,7 @@ def get_or_create_phonenumber_alias(phone_number: str) -> dict:
 
 def send_email(
     phone_number: str, to_email: str, subject: str, body: str, **kwargs
-) -> None:
+) -> tuple:
     """
     Send an email using the phone number alias as the sender.
 
@@ -83,15 +85,31 @@ def send_email(
         bcc_email (str, optional): The email address for BCC (Blind Carbon Copy). Defaults to None.
 
     Returns:
+        tuple:
+            success (bool): A boolean indicating the status of the operation. True if successful
+                and False otherwise.
+            message (str): A success message or an error message.
         None
     """
     cc_email = kwargs.get("cc_email")
     bcc_email = kwargs.get("bcc_email")
 
     try:
+        pn_alias = get_or_create_phonenumber_alias(phone_number)
+        if pn_alias is None:
+            return False, "Failed to create phone number alias. Please try again later."
+
+        to_email_contact = get_or_create_alias_contact(
+            pn_alias["id"], email_address=to_email
+        )
+        if to_email_contact is None:
+            return False, "Failed to create contact for alias. Please try again later."
+
+        to_email_reverse_alias = to_email_contact["reverse_alias"]
+
         msg = MIMEMultipart()
         msg["From"] = SL_PRIMARY_EMAIL
-        msg["To"] = to_email
+        msg["To"] = to_email_reverse_alias
         msg["Subject"] = subject
 
         if cc_email:
@@ -101,37 +119,85 @@ def send_email(
 
         msg.attach(MIMEText(body, "plain"))
 
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server = smtplib.SMTP(BRIDGE_SMTP_SERVER, BRIDGE_SMTP_PORT)
 
-        if SMTP_ENABLE_TLS:
+        if BRIDGE_SMTP_ENABLE_TLS:
             server.starttls()
 
-        server.login(SMTP_USERNAME, SMTP_PASSWORD)
+        server.login(BRIDGE_SMTP_USERNAME, BRIDGE_SMTP_PASSWORD)
 
-        recipients = [to_email]
+        recipients = [to_email_reverse_alias]
         if cc_email:
             recipients.append(cc_email)
         if bcc_email:
             recipients.append(bcc_email)
 
-        server.sendmail(SMTP_USERNAME, recipients, msg.as_string())
+        server.sendmail(BRIDGE_SMTP_USERNAME, recipients, msg.as_string())
         server.quit()
 
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        logger.info("Email sent successfully to %s at %s", to_email, timestamp)
+        logger.info("Email sent successfully at %s.", timestamp)
+        return True, f"Email sent successfully at {timestamp}."
 
     except Exception as e:
         logger.exception(e)
+        return False, "Failed to send email. Please try again later."
+
+
+def parse_arguments():
+    """Parse command line arguments/"""
+    parser = argparse.ArgumentParser(
+        description="A client script for sending emails using SimpleLogin alias and reverse alias.",
+        prog="SimpleLogin Client CLI.",
+    )
+    parser.add_argument(
+        "command", choices=["send_email"], help="Command for sending emails."
+    )
+    parser.add_argument(
+        "--phone_number",
+        type=str,
+        required=True,
+        help="The sender's phone number, used as a prefix for the email alias.",
+    )
+    parser.add_argument(
+        "--to", type=str, required=True, help="The recipient's email address."
+    )
+    parser.add_argument(
+        "--body", type=str, required=True, help="The main content or body of the email."
+    )
+    parser.add_argument(
+        "--subject", type=str, required=True, help="The subject of the email."
+    )
+    parser.add_argument(
+        "--cc", type=str, help="The email address for CC (Carbon Copy).", default=None
+    )
+    parser.add_argument(
+        "--bcc",
+        type=str,
+        help="The email address for BCC (Blind Carbon Copy).",
+        default=None,
+    )
+    return parser.parse_args()
+
+
+def main():
+    """Entry function for CLI tool."""
+    args = parse_arguments()
+
+    match args.command:
+        case "send_email":
+            success, message = send_email(
+                phone_number=args.phone_number,
+                to_email=args.to,
+                body=args.body,
+                subject=args.subject,
+                cc_email=args.cc,
+                bcc_email=args.bcc,
+            )
+            if not success:
+                sys.exit(1)
+            sys.exit(0)
 
 
 if __name__ == "__main__":
-    pn_alias = get_or_create_phonenumber_alias("+237123456789")
-    print(">>>>>>", pn_alias)
-    contact = get_or_create_alias_contact(pn_alias["id"], email_address="")
-    print(">>>>>>", contact)
-    send_email(
-        phone_number="",
-        to_email=contact["reverse_alias"],
-        subject="Hello There Again.",
-        body="Hey there this is a sample mail from bridge.",
-    )
+    main()
