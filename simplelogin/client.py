@@ -29,7 +29,7 @@ BRIDGE_SMTP_PASSWORD = get_env_var("BRIDGE_SMTP_PASSWORD", strict=True)
 BRIDGE_SMTP_ENABLE_TLS = get_env_var("BRIDGE_SMTP_ENABLE_TLS", True)
 
 
-def get_or_create_phonenumber_alias(phone_number: str) -> dict:
+def __get_or_create_phonenumber_alias__(phone_number: str) -> dict:
     """
     Retrieve or create an email alias for a given phone number.
 
@@ -70,6 +70,93 @@ def get_or_create_phonenumber_alias(phone_number: str) -> dict:
     return alias
 
 
+def __handle_aliases__(pn_alias, to_email, cc_email, bcc_email):
+    """
+    Handle alias creation for email addresses.
+
+    Args:
+        pn_alias (dict): Phone number alias details.
+        to_email (str): Recipient's email address.
+        cc_email (str): CC email address.
+        bcc_email (str): BCC email address.
+
+    Returns:
+        tuple:
+            to_email_reverse_alias (str): Reverse alias for the recipient email.
+            cc_email_reverse_alias (str): Reverse alias for the CC email.
+            bcc_email_reverse_alias (str): Reverse alias for the BCC email.
+    """
+    to_email_contact = get_or_create_alias_contact(
+        pn_alias["id"], email_address=to_email
+    )
+    cc_email_contact = (
+        get_or_create_alias_contact(pn_alias["id"], email_address=cc_email)
+        if cc_email
+        else None
+    )
+    bcc_email_contact = (
+        get_or_create_alias_contact(pn_alias["id"], email_address=bcc_email)
+        if bcc_email
+        else None
+    )
+
+    to_email_reverse_alias = (
+        to_email_contact["reverse_alias"] if to_email_contact else None
+    )
+    cc_email_reverse_alias = (
+        cc_email_contact["reverse_alias"] if cc_email_contact else None
+    )
+    bcc_email_reverse_alias = (
+        bcc_email_contact["reverse_alias"] if bcc_email_contact else None
+    )
+
+    return to_email_reverse_alias, cc_email_reverse_alias, bcc_email_reverse_alias
+
+
+def __send_email_via_smtp__(
+    to_email_reverse_alias,
+    subject,
+    body,
+    cc_email_reverse_alias,
+    bcc_email_reverse_alias,
+):
+    """
+    Send email using SMTP.
+
+    Args:
+        to_email_reverse_alias (str): The recipient's reverse alias email address.
+        subject (str): The subject of the email.
+        body (str): The main content or body of the email.
+        cc_email_reverse_alias (str): CC reverse alias email address.
+        bcc_email_reverse_alias (str): BCC reverse alias email address.
+    """
+    msg = MIMEMultipart()
+    msg["From"] = SL_PRIMARY_EMAIL
+    msg["To"] = to_email_reverse_alias
+    msg["Subject"] = subject
+
+    if cc_email_reverse_alias:
+        msg["Cc"] = cc_email_reverse_alias
+    if bcc_email_reverse_alias:
+        msg["Bcc"] = bcc_email_reverse_alias
+
+    msg.attach(MIMEText(body, "plain"))
+
+    server = smtplib.SMTP(BRIDGE_SMTP_SERVER, BRIDGE_SMTP_PORT)
+    if BRIDGE_SMTP_ENABLE_TLS:
+        server.starttls()
+    server.login(BRIDGE_SMTP_USERNAME, BRIDGE_SMTP_PASSWORD)
+
+    recipients = [to_email_reverse_alias]
+    if cc_email_reverse_alias:
+        recipients.append(cc_email_reverse_alias)
+    if bcc_email_reverse_alias:
+        recipients.append(bcc_email_reverse_alias)
+
+    server.sendmail(BRIDGE_SMTP_USERNAME, recipients, msg.as_string())
+    server.quit()
+
+
 def send_email(
     phone_number: str, to_email: str, subject: str, body: str, **kwargs
 ) -> tuple:
@@ -95,45 +182,27 @@ def send_email(
     bcc_email = kwargs.get("bcc_email")
 
     try:
-        pn_alias = get_or_create_phonenumber_alias(phone_number)
+        pn_alias = __get_or_create_phonenumber_alias__(phone_number)
         if pn_alias is None:
             return False, "Failed to create phone number alias. Please try again later."
 
-        to_email_contact = get_or_create_alias_contact(
-            pn_alias["id"], email_address=to_email
+        to_email_reverse_alias, cc_email_reverse_alias, bcc_email_reverse_alias = (
+            __handle_aliases__(pn_alias, to_email, cc_email, bcc_email)
         )
-        if to_email_contact is None:
-            return False, "Failed to create contact for alias. Please try again later."
 
-        to_email_reverse_alias = to_email_contact["reverse_alias"]
+        if to_email_reverse_alias is None:
+            return (
+                False,
+                "Failed to create to_email contact reverse alias. Please try again later.",
+            )
 
-        msg = MIMEMultipart()
-        msg["From"] = SL_PRIMARY_EMAIL
-        msg["To"] = to_email_reverse_alias
-        msg["Subject"] = subject
-
-        if cc_email:
-            msg["Cc"] = cc_email
-        if bcc_email:
-            msg["Bcc"] = bcc_email
-
-        msg.attach(MIMEText(body, "plain"))
-
-        server = smtplib.SMTP(BRIDGE_SMTP_SERVER, BRIDGE_SMTP_PORT)
-
-        if BRIDGE_SMTP_ENABLE_TLS:
-            server.starttls()
-
-        server.login(BRIDGE_SMTP_USERNAME, BRIDGE_SMTP_PASSWORD)
-
-        recipients = [to_email_reverse_alias]
-        if cc_email:
-            recipients.append(cc_email)
-        if bcc_email:
-            recipients.append(bcc_email)
-
-        server.sendmail(BRIDGE_SMTP_USERNAME, recipients, msg.as_string())
-        server.quit()
+        __send_email_via_smtp__(
+            to_email_reverse_alias,
+            subject,
+            body,
+            cc_email_reverse_alias,
+            bcc_email_reverse_alias,
+        )
 
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         logger.info("Email sent successfully at %s.", timestamp)
@@ -145,7 +214,7 @@ def send_email(
 
 
 def parse_arguments():
-    """Parse command line arguments/"""
+    """Parse command line arguments."""
     parser = argparse.ArgumentParser(
         description="A client script for sending emails using SimpleLogin alias and reverse alias.",
         prog="SimpleLogin Client CLI.",
@@ -195,6 +264,7 @@ def main():
                 bcc_email=args.bcc,
             )
             if not success:
+                logger.error(message)
                 sys.exit(1)
             sys.exit(0)
 
