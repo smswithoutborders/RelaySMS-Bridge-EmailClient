@@ -1,6 +1,6 @@
 # RelaySMS Email Bridge
 
-**RelaySMS Email Bridge** allows users to send emails when they cannot directly access their email account, by using the recipient’s phone number as a prefix (e.g., `237123456789@relaysms.me`). The recipient can identify the sender based on the phone number.
+**RelaySMS Email Bridge** enables users to send emails when they don’t have direct access to their email account but need to communicate. The tool uses the sender’s phone number as an email alias. The email is relayed to the recipient with the sender’s phone number as the prefix and the bridge server’s hostname as the domain (e.g., `237123456789@relaysms.me`). This allows the recipient to identify the sender based on their phone number.
 
 ## Prerequisites
 
