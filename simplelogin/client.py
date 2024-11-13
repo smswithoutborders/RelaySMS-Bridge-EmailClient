@@ -153,7 +153,7 @@ def __send_email_via_smtp__(
     if bcc_email_reverse_alias:
         recipients.append(bcc_email_reverse_alias)
 
-    server.sendmail(BRIDGE_SMTP_USERNAME, recipients, msg.as_string())
+    server.sendmail(SL_PRIMARY_EMAIL, recipients, msg.as_string())
     server.quit()
 
 
