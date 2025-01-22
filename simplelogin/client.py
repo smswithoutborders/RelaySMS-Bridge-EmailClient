@@ -46,7 +46,8 @@ def __get_or_create_phonenumber_alias__(phone_number: str) -> dict:
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     note = f"Created by relaysms email bridge at {timestamp}."
 
-    aliases = get_aliases(query=f"{cleaned_phone_number}@{SL_PRIMARY_DOMAIN}")
+    given_alias_prefix = f"{cleaned_phone_number}_bridge"
+    aliases = get_aliases(query=f"{given_alias_prefix}@{SL_PRIMARY_DOMAIN}")
     if aliases is None:
         return None
 
@@ -58,7 +59,7 @@ def __get_or_create_phonenumber_alias__(phone_number: str) -> dict:
         return None
 
     alias = create_alias(
-        alias_prefix=cleaned_phone_number,
+        alias_prefix=given_alias_prefix,
         alias_name=f"{cleaned_phone_number} Via RelaySMS",
         hostname=SL_PRIMARY_DOMAIN,
         mailbox_id=primary_mailbox["id"],
