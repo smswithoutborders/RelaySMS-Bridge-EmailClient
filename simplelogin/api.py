@@ -1,4 +1,7 @@
-"""A module for interacting with the SimpleLogin API.
+"""
+This program is free software: you can redistribute it under the terms
+of the GNU General Public License, v. 3.0. If a copy of the GNU General
+Public License was not distributed with this file, see <https://www.gnu.org/licenses/>.
 
 The API endpoints referenced are from the official SimpleLogin API documentation:
 https://github.com/simple-login/app/blob/master/docs/api.md
@@ -94,7 +97,8 @@ def get_aliases(query: str = None) -> list:
         response = requests.post(url, json=data, headers=__get_headers__(), timeout=30)
         response.raise_for_status()
         aliases = response.json()
-        logger.info("Fetched aliases with query '%s' successfully.", query)
+        logger.info("Successfully fetched aliases.")
+        logger.debug("Fetched aliases with query '%s' successfully.", query)
         return aliases["aliases"]
     except requests.exceptions.RequestException as e:
         error_response = e.response.json()
@@ -148,7 +152,8 @@ def create_alias(
         response = requests.post(url, json=data, headers=__get_headers__(), timeout=30)
         response.raise_for_status()
         alias = response.json()
-        logger.info("Alias %s created successfully.", alias["email"])
+        logger.info("Successfully created alias.")
+        logger.debug("Alias %s created successfully.", alias["email"])
         return alias
     except requests.exceptions.RequestException as e:
         error_response = e.response.json()
@@ -173,7 +178,8 @@ def delete_alias(alias_id: int) -> bool:
             url, headers=__get_headers__(include_content_type=False), timeout=30
         )
         response.raise_for_status()
-        logger.info("Alias ID %s deleted successfully.", alias_id)
+        logger.info("Successfully deleted alias.")
+        logger.debug("Alias ID %s deleted successfully.", alias_id)
         return True
     except requests.exceptions.RequestException as e:
         error_response = e.response.json()
@@ -251,6 +257,9 @@ def get_or_create_alias_contact(alias_id: int, email_address: str) -> dict:
         response.raise_for_status()
         contact = response.json()
         logger.info(
+            "Successfully %s contact.", "retrieved" if contact["existed"] else "created"
+        )
+        logger.debug(
             "Contact '%s' %s successfully.",
             contact["contact"],
             "retrieved" if contact["existed"] else "created",
