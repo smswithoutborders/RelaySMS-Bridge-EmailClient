@@ -1,5 +1,7 @@
 """
-A client script for sending emails using a SimpleLogin alias and reverse alias.
+This program is free software: you can redistribute it under the terms
+of the GNU General Public License, v. 3.0. If a copy of the GNU General
+Public License was not distributed with this file, see <https://www.gnu.org/licenses/>.
 """
 
 import sys
@@ -28,6 +30,9 @@ BRIDGE_SMTP_USERNAME = get_env_var("BRIDGE_SMTP_USERNAME", strict=True)
 BRIDGE_SMTP_PASSWORD = get_env_var("BRIDGE_SMTP_PASSWORD", strict=True)
 BRIDGE_SMTP_ENABLE_TLS = get_env_var("BRIDGE_SMTP_ENABLE_TLS", True)
 
+ALIAS_PHONE_NUMBER_PREFIX = get_env_var("ALIAS_PHONE_NUMBER_PREFIX", default_value="")
+ALIAS_PHONE_NUMBER_SUFFIX = get_env_var("ALIAS_PHONE_NUMBER_SUFFIX", default_value="")
+
 
 def __get_or_create_phonenumber_alias__(phone_number: str) -> dict:
     """
@@ -43,10 +48,13 @@ def __get_or_create_phonenumber_alias__(phone_number: str) -> dict:
         dict: A dictionary of the alias associated with the phone number.
     """
     cleaned_phone_number = re.sub(r"\D", "", phone_number)
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S (%Z)")
     note = f"Created by relaysms email bridge at {timestamp}."
 
-    given_alias_prefix = f"{cleaned_phone_number}_bridge"
+    given_alias_prefix = (
+        f"{ALIAS_PHONE_NUMBER_PREFIX}{cleaned_phone_number}{ALIAS_PHONE_NUMBER_SUFFIX}"
+    )
+
     aliases = get_aliases(query=f"{given_alias_prefix}@{SL_PRIMARY_DOMAIN}")
     if aliases is None:
         return None
