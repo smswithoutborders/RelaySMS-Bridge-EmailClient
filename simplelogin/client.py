@@ -8,7 +8,7 @@ import sys
 import re
 import argparse
 import smtplib
-from datetime import datetime
+from datetime import datetime, timezone
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from logutils import get_logger
@@ -48,7 +48,7 @@ def __get_or_create_phonenumber_alias__(phone_number: str) -> dict:
         dict: A dictionary of the alias associated with the phone number.
     """
     cleaned_phone_number = re.sub(r"\D", "", phone_number)
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S (%Z)")
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S (%Z)")
     note = f"Created by relaysms email bridge at {timestamp}."
 
     given_alias_prefix = (
