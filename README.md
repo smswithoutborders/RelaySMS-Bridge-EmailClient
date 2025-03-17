@@ -45,6 +45,8 @@ Before you begin, ensure you have:
    - `BRIDGE_SMTP_USERNAME`: Your SMTP username.
    - `BRIDGE_SMTP_PASSWORD`: Your SMTP password.
    - `BRIDGE_SMTP_ENABLE_TLS`: Enable TLS (default: `True`).
+   - `ALIAS_PHONE_NUMBER_PREFIX`: (Optional) A prefix to be added to the phone number alias.
+   - `ALIAS_PHONE_NUMBER_SUFFIX`: (Optional) A suffix to be added to the phone number alias.
 
    Example:
 
@@ -56,6 +58,8 @@ Before you begin, ensure you have:
    export BRIDGE_SMTP_PORT=587
    export BRIDGE_SMTP_USERNAME="your-username"
    export BRIDGE_SMTP_PASSWORD="your-password"
+   export ALIAS_PHONE_NUMBER_PREFIX=""
+   export ALIAS_PHONE_NUMBER_SUFFIX=""
    ```
 
 ## Clients
