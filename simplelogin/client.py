@@ -11,6 +11,7 @@ import smtplib
 from datetime import datetime, timezone
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.image import MIMEImage
 from logutils import get_logger
 from utils import get_env_var
 from simplelogin.api import (
@@ -128,6 +129,7 @@ def __send_email_via_smtp__(
     body,
     cc_email_reverse_alias,
     bcc_email_reverse_alias,
+    image,
 ):
     """
     Send email using SMTP.
@@ -138,6 +140,7 @@ def __send_email_via_smtp__(
         body (str): The main content or body of the email.
         cc_email_reverse_alias (str): CC reverse alias email address.
         bcc_email_reverse_alias (str): BCC reverse alias email address.
+        image (bytes, optional): Image data to be sent as an attachment. Defaults to None.
     """
     msg = MIMEMultipart()
     msg["From"] = SL_PRIMARY_EMAIL
@@ -150,6 +153,13 @@ def __send_email_via_smtp__(
         msg["Bcc"] = bcc_email_reverse_alias
 
     msg.attach(MIMEText(body, "plain"))
+
+    if image:
+        image_attachment = MIMEImage(image, _subtype="webp")
+        image_attachment.add_header(
+            "Content-Disposition", "attachment", filename="attached_image.webp"
+        )
+        msg.attach(image_attachment)
 
     server = smtplib.SMTP(BRIDGE_SMTP_SERVER, BRIDGE_SMTP_PORT)
     if BRIDGE_SMTP_ENABLE_TLS:
@@ -179,6 +189,7 @@ def send_email(
         body (str): The main content or body of the email.
         cc_email (str, optional): The email address for CC (Carbon Copy). Defaults to None.
         bcc_email (str, optional): The email address for BCC (Blind Carbon Copy). Defaults to None.
+        image (bytes, optional): Image data to be sent as an attachment. Defaults to None.
 
     Returns:
         tuple:
@@ -189,6 +200,7 @@ def send_email(
     """
     cc_email = kwargs.get("cc_email")
     bcc_email = kwargs.get("bcc_email")
+    image = kwargs.get("image")
 
     try:
         pn_alias = __get_or_create_phonenumber_alias__(phone_number)
@@ -211,6 +223,7 @@ def send_email(
             body,
             cc_email_reverse_alias,
             bcc_email_reverse_alias,
+            image,
         )
 
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
